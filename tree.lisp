@@ -1,6 +1,7 @@
 (in-package :interval)
 
-(defstruct tree
+(defstruct (tree (:constructor %make-tree)
+                 (:copier %copy-tree))
   (root nil :type (or null node))
   (beforep nil :type function)
   (equalp nil :type function))
