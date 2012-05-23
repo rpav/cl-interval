@@ -9,5 +9,5 @@
   :components ((:file "package")
                (checkl:test-values "results.ms"
                                    :package :interval-test)
-               (checkl:tests "aa-tree-test")))
+               (checkl:tests "tree-test")))
 
