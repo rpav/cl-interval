@@ -1,50 +1,50 @@
 (in-package :interval)
 
-(defstruct aa-tree
-  (root nil :type (or null aa-node))
+(defstruct tree
+  (root nil :type (or null node))
   (beforep nil :type function)
   (equalp nil :type function))
 
-(defun aa-tree-insert (tree value)
-  (declare (type aa-tree tree))
-  (if (aa-tree-root tree)
-      (setf (aa-tree-root tree)
-            (node-insert (aa-tree-root tree) value
-                         (aa-tree-beforep tree)))
-      (setf (aa-tree-root tree)
-            (make-aa-node :level 1 :value value)))
+(defun tree-insert (tree value)
+  (declare (type tree tree))
+  (if (tree-root tree)
+      (setf (tree-root tree)
+            (node-insert (tree-root tree) value
+                         (tree-beforep tree)))
+      (setf (tree-root tree)
+            (make-node :level 1 :value value)))
   tree)
 
-(defun aa-tree-delete (tree value)
-  (declare (type aa-tree tree))
+(defun tree-delete (tree value)
+  (declare (type tree tree))
   (multiple-value-bind (node foundp)
-      (node-delete (aa-tree-root tree) value
-                   (aa-tree-beforep tree)
-                   (aa-tree-equalp tree))
-    (when foundp (setf (aa-tree-root tree) node))
+      (node-delete (tree-root tree) value
+                   (tree-beforep tree)
+                   (tree-equalp tree))
+    (when foundp (setf (tree-root tree) node))
     (values (and foundp value) foundp)))
 
-(defun aa-tree-find (tree value)
-  (declare (type aa-tree tree))
+(defun tree-find (tree value)
+  (declare (type tree tree))
   (multiple-value-bind (node foundp)
-      (node-find (aa-tree-root tree) value
-                 (aa-tree-beforep tree)
-                 (aa-tree-equalp tree))
+      (node-find (tree-root tree) value
+                 (tree-beforep tree)
+                 (tree-equalp tree))
     (values (and foundp node) foundp)))
 
-(defun aa-tree-validate (tree)
-  (node-validate (aa-tree-root tree)))
+(defun tree-validate (tree)
+  (node-validate (tree-root tree)))
 
-(defun aa-tree-dump (tree)
-  (when tree (node-dump (aa-tree-root tree))))
+(defun tree-dump (tree)
+  (when tree (node-dump (tree-root tree))))
 
-(defstruct (aa-node (:conc-name node-))
+(defstruct (node (:conc-name node-))
   (level 0 :type (unsigned-byte 16))
-  (left nil :type (or null aa-node))
-  (right nil :type (or null aa-node))
+  (left nil :type (or null node))
+  (right nil :type (or null node))
   (value nil :type t))
 
-(defmethod print-object ((object aa-node) stream)
+(defmethod print-object ((object node) stream)
   (print-unreadable-object (object stream :type t :identity t)
     (format stream "L: ~A, V: ~A"
             (node-level object) (node-value object))))
@@ -57,19 +57,19 @@
 
 (declaim (inline node-left-level-p node-two-rights-level-p))
 (defun node-left-level-p (node)
-  (declare (type aa-node node))
+  (declare (type node node))
   (and node (node-left node)
        (= (node-level node)
           (node-level (node-left node)))))
 
 (defun node-two-rights-level-p (node)
-  (declare (type aa-node node))
+  (declare (type node node))
   (and node (node-right node) (node-right (node-right node))
        (= (node-level node)
           (node-level (node-right (node-right node))))))
 
 (defun node-skew (node)
-  (declare (type (or null aa-node) node))
+  (declare (type (or null node) node))
   (if (and node (node-left-level-p node))
       (prog1
           (node-left node)
@@ -78,7 +78,7 @@
       node))
 
 (defun node-split (node)
-  (declare (type (or null aa-node) node))
+  (declare (type (or null node) node))
   (if (and node (node-two-rights-level-p node))
       (prog2
           (incf (node-level (node-right node)))
@@ -88,12 +88,12 @@
       node))
 
 (defun node-insert (node value beforep)
-  (declare (type (or null aa-node) node)
+  (declare (type (or null node) node)
            (type function beforep))
   (cond
     ((null node)
      (return-from node-insert
-       (make-aa-node :level 1 :value value)))
+       (make-node :level 1 :value value)))
     ((funcall beforep value (node-value node))
      (setf (node-left node) (node-insert (node-left node) value beforep)))
     (t
@@ -141,7 +141,7 @@
      (if foundp ,then ,else)))
 
 (defun node-delete (node value beforep equalp)
-  (declare (type (or null aa-node) node)
+  (declare (type (or null node) node)
            (type function beforep))
   (let (node-found-p)
     (cond
@@ -224,7 +224,7 @@
     t))
 
 (defun node-find (node value beforep equalp)
-  (declare (type (or null aa-node) node)
+  (declare (type (or null node) node)
            (type function beforep equalp))
   (cond
     ((null node) (return-from node-find (values nil nil)))
