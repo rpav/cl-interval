@@ -2,11 +2,11 @@
   (:use #:cl)
   (:export
 
-   ;; AA tree
-   #:aa-tree #:make-aa-tree
-   #:aa-tree-root #:aa-tree-beforep #:aa-tree-equalp
-   #:aa-tree-insert #:aa-tree-delete #:aa-tree-find
-   #:aa-tree-dump #:sdot-aa-tree #:aa-tree-validate
+   ;; Interval tree
+   #:tree #:make-tree
+   #:tree-root #:tree-beforep #:tree-equalp
+   #:tree-insert #:tree-delete #:tree-find
+   #:tree-dump #:sdot-tree #:tree-validate
 
    ;; AA node
-   #:aa-node #:node-level #:node-left #:node-right #:node-value))
+   #:node #:node-level #:node-left #:node-right #:node-value))

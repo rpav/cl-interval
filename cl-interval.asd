@@ -7,4 +7,4 @@
 
   :components
   ((:file "package")
-   (:file "aa-tree")))
+   (:file "tree")))
