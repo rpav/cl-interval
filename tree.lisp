@@ -164,6 +164,12 @@ end (effectively finding intervals at a point)."
         (t (setf (node-max-end node) (interval-end (node-value node))))))
     node))
 
+(defmacro if-node-fun ((node function) then &optional else)
+  `(multiple-value-bind (node0 foundp)
+       (funcall ,function tree ,node value)
+     (declare (ignorable node0 foundp))
+     (if foundp ,then ,else)))
+
 (defun node-insert (tree node value)
   (declare (type tree tree)
            (type (or null node) node))
@@ -220,12 +226,6 @@ end (effectively finding intervals at a point)."
       (when (< target-level right-level)
         (setf (node-level (node-right node)) target-level)))
     node))
-
-(defmacro if-node-fun ((node function) then &optional else)
-  `(multiple-value-bind (node0 foundp)
-       (funcall ,function tree ,node value)
-     (declare (ignorable node0 foundp))
-     (if foundp ,then ,else)))
 
 (defun node-delete (tree node value)
   (declare (type tree tree)
