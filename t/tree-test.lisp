@@ -5,8 +5,16 @@
 (defmethod checkl:result-translate ((result interval:tree))
   (interval:tree-dump result))
 
-(defmethod checkl:result-translate ((result interval:node))
-  (interval:node-value result))
+(defmethod checkl:result-translate ((node interval::node))
+  (list (interval:interval-start (interval::node-value node))
+        (interval:interval-end (interval::node-value node))))
+
+(defmethod checkl:result-translate ((result interval:interval))
+  (list (interval:interval-start result)
+        (interval:interval-end result)))
+
+(defun mi (list)
+  (mapcar #'checkl:result-translate list))
 
 (check (:name :make-tree)
   (setf *aa* (interval:make-tree))
@@ -21,19 +29,19 @@
 (check (:name :find-all)
   (run :basic-insertion)
   (results
-   (interval:find-all *aa* 1)
-   (interval:find-all *aa* 2)
-   (interval:find-all *aa* 4)
-   (interval:find-all *aa* 50)
-   (interval:find-all *aa* 80)
-   (interval:find-all *aa* 90)))
+   (mi (interval:find-all *aa* 1))
+   (mi (interval:find-all *aa* 2))
+   (mi (interval:find-all *aa* 4))
+   (mi (interval:find-all *aa* 50))
+   (mi (interval:find-all *aa* 80))
+   (mi (interval:find-all *aa* 90))))
 
 (check (:name :find-all-2)
   (run :basic-insertion)
   (results
-   (interval:find-all *aa* '(0 . 5))
-   (interval:find-all *aa* '(10 . 20))
-   (interval:find-all *aa* '(20 . 25))))
+   (mi (interval:find-all *aa* '(0 . 5)))
+   (mi (interval:find-all *aa* '(10 . 20)))
+   (mi (interval:find-all *aa* '(20 . 25)))))
 
 (check (:name :basic-find)
   (run :basic-insertion)
@@ -64,14 +72,14 @@
     (interval:tree-validate *aa*))
   (results
    *aa*
-   (interval:find-all *aa* 0)
-   (interval:find-all *aa* 1)
-   (interval:find-all *aa* 2)
-   (interval:find-all *aa* 9)
-   (interval:find-all *aa* 10)
-   (interval:find-all *aa* 15)
-   (interval:find-all *aa* 19)
-   (interval:find-all *aa* 20)))
+   (mi (interval:find-all *aa* 0))
+   (mi (interval:find-all *aa* 1))
+   (mi (interval:find-all *aa* 2))
+   (mi (interval:find-all *aa* 9))
+   (mi (interval:find-all *aa* 10))
+   (mi (interval:find-all *aa* 15))
+   (mi (interval:find-all *aa* 19))
+   (mi (interval:find-all *aa* 20))))
 
 (check ()
  (time

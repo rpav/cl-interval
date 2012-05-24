@@ -106,7 +106,10 @@ end (effectively finding intervals at a point)."
 
 (defun node-dump (node)
   (when node
-    (list (node-level node) (node-value node) (node-max-end node)
+    (list (node-level node)
+          (cons (interval-start (node-value node))
+                (interval-end (node-value node)))
+          (node-max-end node)
           (node-dump (node-left node))
           (node-dump (node-right node)))))
 
