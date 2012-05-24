@@ -5,7 +5,7 @@
     (with-open-file (stream filename :direction :output
                                      :if-exists :supersede)
       (s-dot:s-dot->dot stream
-                        `(s-dot::graph () ,@(sdot-node (aa-tree-root tree)
+                        `(s-dot::graph () ,@(sdot-node (tree-root tree)
                                                        (gensym "ROOT")))))))
 
 (defun sdot-node (node name)
@@ -16,8 +16,11 @@
             (right (string right)))
         `((s-dot::node ((s-dot::id ,name)
                         (s-dot::label
-                         ,(format nil "L:~A V:~A"
-                                  (node-level node) (node-value node)))))
+                         ,(format nil "[L:~A] ~A-~A Max: ~A"
+                                  (node-level node)
+                                  (interval-start (node-value node))
+                                  (interval-end (node-value node))
+                                  (node-max-end node)))))
           ,@(sdot-node (node-left node) left)
           ,@(sdot-node (node-right node) right)
           ,@(when (node-left node)

@@ -4,34 +4,71 @@
                  (:copier %copy-tree))
   (root nil :type (or null node))
   (beforep nil :type function)
-  (equalp nil :type function))
+  (equalp nil :type function)
+  (value-before-p nil :type function))
 
-(defun tree-insert (tree value)
+(defun make-tree (&key (interval-before-p 'interval<)
+                  (interval-equal-p 'interval=)
+                  (value-before-p '<=))
+  (%make-tree :beforep (coerce interval-before-p 'function)
+              :equalp (coerce interval-equal-p 'function)
+              :value-before-p (coerce value-before-p 'function)))
+
+(defun insert (tree interval)
+  "=> TREE
+Insert `INTERVAL` into `TREE`."
   (declare (type tree tree))
   (if (tree-root tree)
       (setf (tree-root tree)
-            (node-insert (tree-root tree) value
-                         (tree-beforep tree)))
+            (node-insert tree (tree-root tree) interval))
       (setf (tree-root tree)
-            (make-node :level 1 :value value)))
+            (make-node :level 1 :value interval)))
   tree)
 
-(defun tree-delete (tree value)
+(defun delete (tree interval)
+  "=> INTERVAL, deleted-p
+Delete `INTERVAL` from `TREE`."
   (declare (type tree tree))
   (multiple-value-bind (node foundp)
-      (node-delete (tree-root tree) value
-                   (tree-beforep tree)
-                   (tree-equalp tree))
+      (node-delete tree (tree-root tree) interval)
     (when foundp (setf (tree-root tree) node))
-    (values (and foundp value) foundp)))
+    (values interval foundp)))
 
-(defun tree-find (tree value)
-  (declare (type tree tree))
-  (multiple-value-bind (node foundp)
-      (node-find (tree-root tree) value
-                 (tree-beforep tree)
-                 (tree-equalp tree))
-    (values (and foundp node) foundp)))
+(defun find (tree interval)
+  "=> interval-in-tree or NIL
+
+Find a specific interval that is :interval-equal-p to `INTERVAL` in
+`TREE` and return it, or NIL.
+
+`INTERVAL` may be any type of interval, or a cons in the form `(START
+. END)`."
+  (declare (type tree tree)
+           (type (or cons interval) interval))
+  (let ((interval (etypecase interval
+                    (interval interval)
+                    (cons (make-interval :start (car interval)
+                                         :end (cdr interval))))))
+    (multiple-value-bind (node foundp)
+        (node-find tree (tree-root tree) interval)
+      (and foundp (node-value node)))))
+
+(defun find-all (tree interval)
+  "=> list-of-intervals or NIL
+
+Find all intervals intersecting `INTERVAL` in `TREE`.  `INTERVAL` does
+not have to be matched exactly in `TREE`.
+
+Alternatively, `INTERVAL` may be either a cons of `(START . END)`, or
+a single value, which will be used as both the start and the
+end (effectively finding intervals at a point)."
+  (let ((interval (typecase interval
+                    (interval interval)
+                    (cons
+                     (make-interval :start (car interval)
+                                    :end (cdr interval)))
+                    (t (make-interval :start interval :end interval)))))
+    (mapcar #'node-value
+            (node-find-all tree (tree-root tree) interval))))
 
 (defun tree-validate (tree)
   (node-validate (tree-root tree)))
@@ -43,7 +80,8 @@
   (level 0 :type (unsigned-byte 16))
   (left nil :type (or null node))
   (right nil :type (or null node))
-  (value nil :type t))
+  (value nil :type interval)
+  (max-end nil :type t))
 
 (defmethod print-object ((object node) stream)
   (print-unreadable-object (object stream :type t :identity t)
@@ -52,7 +90,7 @@
 
 (defun node-dump (node)
   (when node
-    (list (node-level node) (node-value node)
+    (list (node-level node) (node-value node) (node-max-end node)
           (node-dump (node-left node))
           (node-dump (node-right node)))))
 
@@ -69,38 +107,61 @@
        (= (node-level node)
           (node-level (node-right (node-right node))))))
 
-(defun node-skew (node)
+(defun node-skew (tree node)
   (declare (type (or null node) node))
   (if (and node (node-left-level-p node))
-      (prog1
-          (node-left node)
+      (let ((left-node (node-left node)))
         (psetf (node-right (node-left node)) node
-               (node-left node) (node-right (node-left node))))
+               (node-left node) (node-right (node-left node)))
+        (node-update-max tree node)
+        (node-update-max tree left-node)
+        left-node)
       node))
 
-(defun node-split (node)
+(defun node-split (tree node)
   (declare (type (or null node) node))
   (if (and node (node-two-rights-level-p node))
-      (prog2
-          (incf (node-level (node-right node)))
-          (node-right node)
+      (let ((right-node (node-right node)))
+        (incf (node-level right-node))
         (psetf (node-left (node-right node)) node
-               (node-right node) (node-left (node-right node))))
+               (node-right node) (node-left (node-right node)))
+        (node-update-max tree node)
+        (node-update-max tree right-node)
+        right-node)
       node))
 
-(defun node-insert (node value beforep)
-  (declare (type (or null node) node)
-           (type function beforep))
-  (cond
-    ((null node)
-     (return-from node-insert
-       (make-node :level 1 :value value)))
-    ((funcall beforep value (node-value node))
-     (setf (node-left node) (node-insert (node-left node) value beforep)))
-    (t
-     (setf (node-right node) (node-insert (node-right node) value beforep))))
+(defun node-update-max (tree node)
+  (let ((value-before-p (tree-value-before-p tree))
+        (node-end (interval-end (node-value node)))
+        (left-max (and (node-left node) (node-max-end (node-left node))))
+        (right-max (and (node-right node) (node-max-end (node-right node)))))
+    (labels ((v< (v1 v2) (funcall value-before-p v1 v2))
+             (vmax (&rest values)
+               (reduce (lambda (a b) (if (v< a b) b a)) values)))
+      (cond
+        ((and left-max right-max)
+         (setf (node-max-end node) (vmax node-end left-max right-max)))
+        (left-max
+         (setf (node-max-end node) (vmax node-end left-max)))
+        (right-max
+         (setf (node-max-end node) (vmax node-end right-max)))
+        (t (setf (node-max-end node) (interval-end (node-value node))))))
+    node))
 
-  (node-split (node-skew node)))
+(defun node-insert (tree node value)
+  (declare (type tree tree)
+           (type (or null node) node))
+  (let ((beforep (tree-beforep tree)))
+    (cond
+      ((null node)
+       (return-from node-insert
+         (make-node :level 1 :value value :max-end (interval-end value))))
+      ((funcall beforep value (node-value node))
+       (setf (node-left node) (node-insert tree (node-left node) value)))
+      (t
+       (setf (node-right node) (node-insert tree (node-right node) value))))
+    (node-update-max tree node)
+    (node-split tree (node-skew tree node))))
 
 (declaim (inline node-leaf-p))
 (defun node-leaf-p (node)
@@ -137,64 +198,68 @@
 
 (defmacro if-node-fun ((node function) then &optional else)
   `(multiple-value-bind (node0 foundp)
-       (funcall ,function ,node value beforep equalp)
+       (funcall ,function tree ,node value)
      (declare (ignorable node0 foundp))
      (if foundp ,then ,else)))
 
-(defun node-delete (node value beforep equalp)
-  (declare (type (or null node) node)
-           (type function beforep))
-  (let (node-found-p)
-    (cond
-      ((null node)
-       (return-from node-delete
-         (values nil nil)))
-      ((funcall beforep value (node-value node))
-       (if-node-fun ((node-left node) #'node-delete)
-         (progn
-           (setf node-found-p foundp)
-           (setf (node-left node) node0))))
-      ((funcall beforep (node-value node) value)
-       (if-node-fun ((node-right node) #'node-delete)
-         (progn
-           (setf node-found-p foundp)
-           (setf (node-right node) node0))))
-      ((funcall equalp (node-value node) value)
-       (setf node-found-p t)
-       (cond
-         ((node-leaf-p node)
-          (return-from node-delete (values nil t)))
-         ((null (node-left node))
-          (let ((successor (node-successor node)))
-            (setf (node-right node) (node-delete (node-right node)
-                                                 (node-value successor)
-                                                 beforep equalp))
-            (setf (node-value node) (node-value successor))))
-         (t
-          (let ((predecessor (node-predecessor node)))
-            (setf (node-left node) (node-delete (node-left node)
-                                                (node-value predecessor)
-                                                beforep equalp))
-            (setf (node-value node) (node-value predecessor))))))
-      (t
-       (if-node-fun ((node-left node) #'node-delete)
-         (setf node-found-p t)
-         (if-node-fun ((node-right node) #'node-delete)
-           (setf node-found-p t)
-           (return-from node-delete (values nil nil))))))
-    (if (node-leaf-p node)
-        (values node node-found-p)
-        (let* ((node (node-skew (node-decrease-level node)))
-               (right (node-skew (node-right node))))
-          (setf (node-right node) right)
-          (setf (node-right right) (node-skew (node-right right)))
-          (setf node (node-split node))
-          (setf (node-right node) (node-split (node-right node)))
-          (values node node-found-p)))))
+(defun node-delete (tree node value)
+  (declare (type tree tree)
+           (type (or null node) node)
+           (type interval value))
+  (let ((beforep (tree-beforep tree))
+        (equalp (tree-equalp tree)))
+   (let (node-found-p)
+     (cond
+       ((null node)
+        (return-from node-delete
+          (values nil nil)))
+       ((funcall beforep value (node-value node))
+        (if-node-fun ((node-left node) #'node-delete)
+          (progn
+            (setf node-found-p foundp)
+            (setf (node-left node) node0))))
+       ((funcall beforep (node-value node) value)
+        (if-node-fun ((node-right node) #'node-delete)
+          (progn
+            (setf node-found-p foundp)
+            (setf (node-right node) node0))))
+       ((funcall equalp (node-value node) value)
+        (setf node-found-p t)
+        (cond
+          ((node-leaf-p node)
+           (return-from node-delete (values nil t)))
+          ((null (node-left node))
+           (let ((successor (node-successor node)))
+             (setf (node-right node) (node-delete tree
+                                                  (node-right node)
+                                                  (node-value successor)))
+             (setf (node-value node) (node-value successor))))
+          (t
+           (let ((predecessor (node-predecessor node)))
+             (setf (node-left node) (node-delete tree (node-left node)
+                                                 (node-value predecessor)))
+             (setf (node-value node) (node-value predecessor))))))
+       (t
+        (if-node-fun ((node-left node) #'node-delete)
+          (setf node-found-p t)
+          (if-node-fun ((node-right node) #'node-delete)
+            (setf node-found-p t)
+            (return-from node-delete (values nil nil))))))
+     (if (node-leaf-p node)
+         (values node node-found-p)
+         (let* ((node (node-skew tree (node-decrease-level node)))
+                (right (node-skew tree (node-right node))))
+           (setf (node-right node) right)
+           (setf (node-right right) (node-skew tree (node-right right)))
+           (setf node (node-split tree node))
+           (setf (node-right node) (node-split tree (node-right node)))
+           (values node node-found-p))))))
 
 (defun node-validate (node &optional prev)
   (flet ((leaf-invariants (node)
-           (= 1 (node-level node)))
+           (assert (= 1 (node-level node)))
+           (assert (= (node-max-end node)
+                      (interval-end (node-value node)))))
          (level-1-invariants (node)
            (assert (null (node-left node))))
          (level->1-invariants (node)
@@ -202,12 +267,16 @@
                         (node-right node))))
          (left-invariants (node)
            (assert (= (1+ (node-level (node-left node)))
-                      (node-level node))))
+                      (node-level node)))
+           (assert (>= (node-max-end node)
+                       (node-max-end (node-left node)))))
          (right-invariants (node prev)
            (assert (or (= (node-level (node-right node))
                           (node-level node))
                        (= (1+ (node-level (node-right node)))
                           (node-level node))))
+           (assert (>= (node-max-end node)
+                       (node-max-end (node-right node))))
            (when prev
              (assert (< (node-level prev) (node-level (node-right node)))))))
     (cond
@@ -224,22 +293,36 @@
     (node-validate (node-right node))
     t))
 
-(defun node-find (node value beforep equalp)
-  (declare (type (or null node) node)
-           (type function beforep equalp))
-  (cond
-    ((null node) (return-from node-find (values nil nil)))
-    ((funcall beforep value (node-value node))
-     (if-node-fun ((node-left node) #'node-find)
-       (values node0 foundp)))
-    ((funcall beforep (node-value node) value)
-     (if-node-fun ((node-right node) #'node-find)
-       (values node0 foundp)))
-    ((funcall equalp (node-value node) value)
-     (values node t))
-    (t
-     (if-node-fun ((node-left node) #'node-find)
-       (values node0 t)
+(defun node-find (tree node value)
+  (declare (type tree tree)
+           (type (or null node) node))
+  (let ((beforep (tree-beforep tree))
+        (equalp (tree-equalp tree)))
+    (cond
+      ((null node) (return-from node-find (values nil nil)))
+      ((funcall beforep value (node-value node))
+       (if-node-fun ((node-left node) #'node-find)
+         (values node0 foundp)))
+      ((funcall beforep (node-value node) value)
        (if-node-fun ((node-right node) #'node-find)
+         (values node0 foundp)))
+      ((funcall equalp (node-value node) value)
+       (values node t))
+      (t
+       (if-node-fun ((node-left node) #'node-find)
          (values node0 t)
-         (values nil nil))))))
+         (if-node-fun ((node-right node) #'node-find)
+           (values node0 t)
+           (values nil nil)))))))
+
+(defun node-find-all (tree node interval)
+  (when node
+    (let ((v< (tree-value-before-p tree)))
+      (concatenate 'list
+        (when (funcall v< (interval-start interval) (node-max-end node))
+          (node-find-all tree (node-left node) interval))
+        (when (interval-intersects v< (node-value node) interval)
+          (list node))
+        (when (funcall v< (interval-start (node-value node))
+                          (interval-start interval))
+          (node-find-all tree (node-right node) interval))))))

@@ -7,4 +7,5 @@
 
   :components
   ((:file "package")
+   (:file "interval")
    (:file "tree")))

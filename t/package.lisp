@@ -1,2 +1,2 @@
 (defpackage :interval-test
-  (:use #:cl #:checkl #:interval))
+  (:use #:cl #:checkl))
