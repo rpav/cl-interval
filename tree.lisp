@@ -3,13 +3,50 @@
 (defstruct (tree (:constructor %make-tree)
                  (:copier %copy-tree))
   (root nil :type (or null node))
-  (beforep nil :type function)
-  (equalp nil :type function)
-  (value-before-p nil :type function))
+  (beforep nil :type function :read-only t)
+  (equalp nil :type function :read-only t)
+  (value-before-p nil :type function :read-only t))
+
+(setf (documentation 'tree-beforep 'function)
+      "=> FUNCTION
+Return the function used to compare *intervals*.  It should return
+whether one interval `START` comes before another interval `START`.")
+
+(setf (documentation 'tree-equalp 'function)
+      "=> FUNCTION
+Return the function used to compare *intervals*.  It should return
+whether one interval is equal to another.  It should not be an identity
+comparison (i.e., not `EQ`).")
+
+(setf (documentation 'tree-value-before-p 'function)
+      "=> FUNCTION
+Return the function used to compare *values* (i.e., start and end).
+For closed intervals, use a less-than-or-equal function.  For open
+intervals, use a less-than function.  Half-open intervals are currently
+not supported.")
 
 (defun make-tree (&key (interval-before-p 'interval<)
                   (interval-equal-p 'interval=)
                   (value-before-p '<=))
+  "=> INTERVAL:TREE
+
+Make an interval tree given the specified functions.  By default,
+these are simple numeric comparisons.
+
+`INTERVAL-BEFORE-P` should take two intervals, `A` and `B`, and test
+whether the *start* of `A` comes before the *start* of `B`.  This is
+used solely for tree placement.  `A` and `B` might be equal, but the
+test may be a less-than-not-equal test.
+
+`INTERVAL-EQUAL-P` should take two intervals, `A` and `B`, and test
+whether they are equal (e.g., the starts and ends are the same).  This
+should *not* be an identity test (i.e., not `EQ`).
+
+`VALUE-BEFORE-P` should take two *values*, `A` and `B`, which are
+used as start or end values, and compare whether `A` comes before `B`.
+For closed intervals, use a less-than-or-equal function.  For open
+intervals, use a less-than function.  Half-open intervals are currently
+not supported."
   (%make-tree :beforep (coerce interval-before-p 'function)
               :equalp (coerce interval-equal-p 'function)
               :value-before-p (coerce value-before-p 'function)))
@@ -22,15 +59,23 @@ interval-equal-p) is not already in `TREE`, returning `INTERVAL`.
 Otherwise, return the existing interval.
 
 `INSERTED-P` is `T` if there was no existing interval, or `NIL` if
-the existing interval was returned."
-  (declare (type tree tree))
-  (multiple-value-bind (node foundp)
-      (node-insert tree (tree-root tree) interval)
-    (if foundp
-        (values (node-value node) nil)
-        (progn
-          (setf (tree-root tree) node)
-          (values interval t)))))
+the existing interval was returned.
+
+`INTERVAL` may alternatively be a cons in the form `(START . END)`.
+In this case, a simple interval is created and inserted."
+  (declare (type tree tree)
+           (type (or cons interval) interval))
+  (let ((interval (etypecase interval
+                    (interval interval)
+                    (cons (make-interval :start (car interval)
+                                         :end (cdr interval))))))
+    (multiple-value-bind (node foundp)
+        (node-insert tree (tree-root tree) interval)
+      (if foundp
+          (values (node-value node) nil)
+          (progn
+            (setf (tree-root tree) node)
+            (values interval t))))))
 
 (defun delete (tree interval)
   "=> INTERVAL, deleted-p
@@ -87,9 +132,16 @@ end (effectively finding intervals at a point)."
             (node-find-all tree (tree-root tree) interval))))
 
 (defun tree-validate (tree)
+  "=> T
+Tests `TREE` for AA-tree and interval-tree invariants, to make sure the
+tree is valid.  It returns `T`, or raises an error if the invariants are
+not met."
   (node-validate (tree-root tree)))
 
 (defun tree-dump (tree)
+  "=> list
+Return a tree dumped into a list form.  This is currently only useful for
+testing."
   (when tree (node-dump (tree-root tree))))
 
 (defstruct (node (:conc-name node-))
@@ -107,7 +159,7 @@ end (effectively finding intervals at a point)."
 (defun node-dump (node)
   (when node
     (list (node-level node)
-          (cons (interval-start (node-value node))
+          (list (interval-start (node-value node))
                 (interval-end (node-value node)))
           (node-max-end node)
           (node-dump (node-left node))

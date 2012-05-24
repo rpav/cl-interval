@@ -10,10 +10,6 @@
 
    ;; Interval tree
    #:tree #:make-tree
-   #:tree-root #:tree-beforep #:tree-equalp
+   #:tree-beforep #:tree-equalp #:tree-value-before-p
    #:insert #:delete #:find #:find-all
-   #:tree-dump #:sdot-tree #:tree-validate
-
-   ;; Node
-   #:node #:node-level #:node-left #:node-right #:node-value
-   #:node-max-end))
+   #:tree-dump #:sdot-tree #:tree-validate))
