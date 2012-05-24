@@ -53,9 +53,25 @@
   (run :basic-insertion)
   (dotimes (i 500)
     (let ((n (random 100)))
-      (interval:delete *aa* n)
+      (interval:delete *aa* (cons n (* 2 n)))
       (interval:tree-validate *aa*)))
   (results))
+
+(check (:name :same-starts)
+  (run :make-tree)
+  (dotimes (i 20)
+    (interval:insert *aa* (interval:make-interval :start 0 :end i))
+    (interval:tree-validate *aa*))
+  (results
+   *aa*
+   (interval:find-all *aa* 0)
+   (interval:find-all *aa* 1)
+   (interval:find-all *aa* 2)
+   (interval:find-all *aa* 9)
+   (interval:find-all *aa* 10)
+   (interval:find-all *aa* 15)
+   (interval:find-all *aa* 19)
+   (interval:find-all *aa* 20)))
 
 (check ()
  (time

@@ -15,24 +15,40 @@
               :value-before-p (coerce value-before-p 'function)))
 
 (defun insert (tree interval)
-  "=> TREE
-Insert `INTERVAL` into `TREE`."
+  "=> interval, inserted-p
+
+Insert `INTERVAL` into `TREE`, if an equivalent interval (by
+interval-equal-p) is not already in `TREE`, returning `INTERVAL`.
+Otherwise, return the existing interval.
+
+`INSERTED-P` is `T` if there was no existing interval, or `NIL` if
+the existing interval was returned."
   (declare (type tree tree))
-  (if (tree-root tree)
-      (setf (tree-root tree)
-            (node-insert tree (tree-root tree) interval))
-      (setf (tree-root tree)
-            (make-node :level 1 :value interval)))
-  tree)
+  (multiple-value-bind (node foundp)
+      (node-insert tree (tree-root tree) interval)
+    (if foundp
+        (values (node-value node) nil)
+        (progn
+          (setf (tree-root tree) node)
+          (values interval t)))))
 
 (defun delete (tree interval)
   "=> INTERVAL, deleted-p
-Delete `INTERVAL` from `TREE`."
-  (declare (type tree tree))
-  (multiple-value-bind (node foundp)
-      (node-delete tree (tree-root tree) interval)
-    (when foundp (setf (tree-root tree) node))
-    (values interval foundp)))
+
+Delete an interval that is interval-equal-p to `INTERVAL` from `TREE`.
+
+`INTERVAL` may be any type of interval, or a cons in the form `(START
+. END)`."
+  (declare (type tree tree)
+           (type (or cons interval) interval))
+  (let ((interval (etypecase interval
+                    (interval interval)
+                    (cons (make-interval :start (car interval)
+                                         :end (cdr interval))))))
+    (multiple-value-bind (node foundp)
+        (node-delete tree (tree-root tree) interval)
+      (when foundp (setf (tree-root tree) node))
+      (values interval foundp))))
 
 (defun find (tree interval)
   "=> interval-in-tree or NIL
@@ -151,17 +167,26 @@ end (effectively finding intervals at a point)."
 (defun node-insert (tree node value)
   (declare (type tree tree)
            (type (or null node) node))
-  (let ((beforep (tree-beforep tree)))
+  (let ((beforep (tree-beforep tree))
+        (equalp (tree-equalp tree)))
     (cond
       ((null node)
        (return-from node-insert
-         (make-node :level 1 :value value :max-end (interval-end value))))
+         (values
+          (make-node :level 1 :value value :max-end (interval-end value))
+          nil)))
       ((funcall beforep value (node-value node))
-       (setf (node-left node) (node-insert tree (node-left node) value)))
+       (if-node-fun ((node-left node) #'node-insert)
+         (return-from node-insert (values node0 t))
+         (setf (node-left node) node0)))
+      ((funcall equalp value (node-value node))
+       (return-from node-insert (values node t)))
       (t
-       (setf (node-right node) (node-insert tree (node-right node) value))))
+       (if-node-fun ((node-right node) #'node-insert)
+         (return-from node-insert (values node0 t))
+         (setf (node-right node) node0))))
     (node-update-max tree node)
-    (node-split tree (node-skew tree node))))
+    (values (node-split tree (node-skew tree node)) nil)))
 
 (declaim (inline node-leaf-p))
 (defun node-leaf-p (node)
@@ -217,12 +242,14 @@ end (effectively finding intervals at a point)."
         (if-node-fun ((node-left node) #'node-delete)
           (progn
             (setf node-found-p foundp)
-            (setf (node-left node) node0))))
+            (setf (node-left node) node0)
+            (node-update-max tree node))))
        ((funcall beforep (node-value node) value)
         (if-node-fun ((node-right node) #'node-delete)
           (progn
             (setf node-found-p foundp)
-            (setf (node-right node) node0))))
+            (setf (node-right node) node0)
+            (node-update-max tree node))))
        ((funcall equalp (node-value node) value)
         (setf node-found-p t)
         (cond
