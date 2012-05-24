@@ -1,5 +1,6 @@
 (in-package :interval)
 
+(declaim (inline interval-start interval-end make-interval))
 (defstruct interval
   start end)
 
