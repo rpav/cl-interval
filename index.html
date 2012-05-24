@@ -1,0 +1,305 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
+<head>
+  <title>GenDoc Documentation
+  </title>
+  <link rel='stylesheet' type='text/css' href='simple.css' />
+</head>
+<html><h1>cl-interval</h1>
+
+<p>This is a simple, efficient implementation of intervals and interval
+trees for Common Lisp.  This is useful if you wish to have a lot of
+<code>start-end</code> pairs, and find all overlapping intervals at a point, or
+within an interval:</p>
+
+<code class="codeblock"><span class="paren1">(<span class="code"><i><span class="symbol">defvar</span></i> <span class="special">*tree*</span> <span class="paren2">(<span class="code">interval:make-tree</span>)</span></span>)</span><br><br>
+<span class="paren1">(<span class="code">interval:insert <span class="special">*tree*</span> '<span class="paren2">(<span class="code">1 . 1</span>)</span></span>)</span><br>
+<span class="paren1">(<span class="code">interval:insert <span class="special">*tree*</span> '<span class="paren2">(<span class="code">1 . 3</span>)</span></span>)</span><br>
+<span class="paren1">(<span class="code">interval:insert <span class="special">*tree*</span> '<span class="paren2">(<span class="code">2 . 4</span>)</span></span>)</span><br>
+<span class="paren1">(<span class="code">interval:insert <span class="special">*tree*</span> '<span class="paren2">(<span class="code">5 . 9</span>)</span></span>)</span><br><br>
+<span class="paren1">(<span class="code">interval:find <span class="special">*tree*</span> '<span class="paren2">(<span class="code">1 . 1</span>)</span></span>)</span> <span class="comment">;; =&gt; #&lt;1-1&gt;<br>
+</span><span class="paren1">(<span class="code">interval:find <span class="special">*tree*</span> '<span class="paren2">(<span class="code">1 . 2</span>)</span></span>)</span> <span class="comment">;; =&gt; NIL<br>
+</span><br>
+<span class="paren1">(<span class="code">interval:find-all <span class="special">*tree*</span> '<span class="paren2">(<span class="code">1 . 1</span>)</span></span>)</span><br>&nbsp;&nbsp;&nbsp;<span class="comment">;; =&gt; (#&lt;1-1&gt; #&lt;1-3&gt;)<br>
+</span><br>
+<span class="comment">;;; Equivalent to:<br>
+</span><span class="paren1">(<span class="code">interval:find-all <span class="special">*tree*</span> 1</span>)</span><br>&nbsp;&nbsp;&nbsp;<span class="comment">;; =&gt; (#&lt;1-1&gt; #&lt;1-3&gt;)<br>
+</span><br>
+<span class="paren1">(<span class="code">interval:find-all <span class="special">*tree*</span> '<span class="paren2">(<span class="code">1 . 2</span>)</span></span>)</span><br>&nbsp;&nbsp;&nbsp;<span class="comment">;; =&gt; (#&lt;1-1&gt; #&lt;1-3&gt; #&lt;2-4&gt;)</span></code>
+
+<p>The implementation for this is based on an augmented AA tree as
+discussed in the following:</p>
+
+<ul>
+<li>Cormen, Thomas H.; Leiserson, Charles E., Rivest, Ronald
+  L. (1990). Introduction to Algorithms (1st ed.). MIT Press and
+  McGraw-Hill. ISBN 0-262-03141-8.</li>
+</ul>
+
+<p>A short summary of this method can (at the time of writing) be found
+<a href="http://en.wikipedia.org/wiki/Interval_tree#Augmented_tree" >on wikipedia</a>.</p>
+
+<h1>Extending Intervals</h1>
+
+<p>Plain numeric intervals are not terribly useful on their own.  Thus,
+intervals are represented in the structure <code>interval:interval</code>, which
+you can extend as you please:</p>
+
+<code class="codeblock"><span class="paren1">(<span class="code"><i><span class="symbol">defstruct</span></i> <span class="paren2">(<span class="code">my-interval <span class="paren3">(<span class="code"><span class="keyword">:include</span> interval:interval</span>)</span></span>)</span><br>&nbsp;&nbsp;my-data</span>)</span><br><br>
+<span class="paren1">(<span class="code"><i><span class="symbol">defun</span></i> my-interval&lt; <span class="paren2">(<span class="code">i1 i2</span>)</span><br>&nbsp;&nbsp;<span class="paren2">(<span class="code">char&lt; <span class="paren3">(<span class="code">interval:interval-start i1</span>)</span> <span class="paren3">(<span class="code">interval:interval-start i2</span>)</span></span>)</span></span>)</span><br><br>
+<span class="paren1">(<span class="code"><i><span class="symbol">defun</span></i> my-interval= <span class="paren2">(<span class="code">i1 i2</span>)</span><br>&nbsp;&nbsp;<span class="paren2">(<span class="code">and <span class="paren3">(<span class="code">char= <span class="paren4">(<span class="code">interval:interval-start i1</span>)</span> <span class="paren4">(<span class="code">interval:interval-start i2</span>)</span></span>)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="paren3">(<span class="code">char= <span class="paren4">(<span class="code">interval:interval-end i1</span>)</span> <span class="paren4">(<span class="code">interval:interval-end i2</span>)</span></span>)</span></span>)</span></span>)</span><br><br>
+<span class="paren1">(<span class="code">setf <span class="special">*mytree*</span> <span class="paren2">(<span class="code">interval:make-tree <span class="keyword">:interval-before-p</span> #'my-interval&lt;<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">:interval-equal-p</span> #'my-interval=<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">:value-before-p</span> #'char&lt;=</span>)</span></span>)</span><br><br>
+<span class="paren1">(<span class="code">interval:insert <span class="special">*mytree*</span> <span class="paren2">(<span class="code">make-my-interval <span class="keyword">:start</span> <span class="character">#\a</span> <span class="keyword">:end</span> <span class="character">#\c</span></span>)</span></span>)</span><br>
+<span class="paren1">(<span class="code">interval:insert <span class="special">*mytree*</span> <span class="paren2">(<span class="code">make-my-interval <span class="keyword">:start</span> <span class="character">#\b</span> <span class="keyword">:end</span> <span class="character">#\m</span></span>)</span></span>)</span><br><br>
+<span class="paren1">(<span class="code">interval:find <span class="special">*mytree*</span> '<span class="paren2">(<span class="code"><span class="character">#\a</span> . <span class="character">#\c</span></span>)</span></span>)</span><br>&nbsp;&nbsp;<span class="comment">;; =&gt; (#&lt;a-c&gt;)<br>
+</span><br>
+<span class="paren1">(<span class="code">interval:find-all <span class="special">*mytree*</span> <span class="character">#\b</span></span>)</span> &nbsp;<br>&nbsp;&nbsp;<span class="comment">;; =&gt; (#&lt;a-c&gt; #&lt;b-m&gt;)<br>
+</span><br>
+<span class="paren1">(<span class="code">setf <span class="paren2">(<span class="code">my-interval-my-data <span class="paren3">(<span class="code">interval:find <span class="special">*mytree*</span> '<span class="paren4">(<span class="code"><span class="character">#\a</span> . <span class="character">#\c</span></span>)</span></span>)</span></span>)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="string">"something useful for later retrieval"</span></span>)</span><br><br>
+<span class="paren1">(<span class="code">mapcar #'my-interval-my-data<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="paren2">(<span class="code">interval:find-all <span class="special">*mytree*</span> <span class="character">#\b</span></span>)</span></span>)</span><br>&nbsp;&nbsp;<span class="comment">;; =&gt; ("something useful for later retrieval" NIL)</span></code>
+
+<p>As you can see in this example, we've made a new interval which
+compares alphabetically, and where we can attach data.</p>
+
+<p>One thing of note is that <code>INTERVAL:INTERVAL-START</code> and
+<code>INTERVAL:INTERVAL-END</code> are used instead of <code>MY-INTERVAL-START</code> and
+<code>MY-INTERVAL-END</code>.  This is not strictly necessary; however, you will
+not be able to search or delete based on &quot;plain&quot; intervals, or use the
+<code>(START . END)</code> or single-value syntax.</p>
+
+<a name='REFERENCE-INTERVAL'></a>
+<h1>
+  Reference: INTERVAL
+</h1>
+<h2>
+  Functions
+</h2>
+<a name='DELETE' class='apiref-row'></a>
+<div class='apiref-spec'>DELETE
+</div>
+<div class='apiref-lambda'>(TREE INTERVAL)
+</div>
+<div class='apiref-result'>=> INTERVAL, deleted-p
+</div>
+<div class='apiref-doc'>
+
+<p>Delete an interval that is interval-equal-p to <code>INTERVAL</code> from <code>TREE</code>.</p>
+
+<p><code>INTERVAL</code> may be any type of interval, or a cons in the form <code>(START
+. END)</code>.</p>
+
+</div>
+<a name='FIND' class='apiref-row'></a>
+<div class='apiref-spec'>FIND
+</div>
+<div class='apiref-lambda'>(TREE INTERVAL)
+</div>
+<div class='apiref-result'>=> interval-in-tree or NIL
+</div>
+<div class='apiref-doc'>
+
+<p>Find a specific interval that is :interval-equal-p to <code>INTERVAL</code> in
+<code>TREE</code> and return it, or NIL.</p>
+
+<p><code>INTERVAL</code> may be any type of interval, or a cons in the form <code>(START
+. END)</code>.</p>
+
+</div>
+<a name='FIND-ALL' class='apiref-row'></a>
+<div class='apiref-spec'>FIND-ALL
+</div>
+<div class='apiref-lambda'>(TREE INTERVAL)
+</div>
+<div class='apiref-result'>=> list-of-intervals or NIL
+</div>
+<div class='apiref-doc'>
+
+<p>Find all intervals intersecting <code>INTERVAL</code> in <code>TREE</code>.  <code>INTERVAL</code> does
+not have to be matched exactly in <code>TREE</code>.</p>
+
+<p>Alternatively, <code>INTERVAL</code> may be either a cons of <code>(START . END)</code>, or
+a single value, which will be used as both the start and the
+end (effectively finding intervals at a point).</p>
+
+</div>
+<a name='INSERT' class='apiref-row'></a>
+<div class='apiref-spec'>INSERT
+</div>
+<div class='apiref-lambda'>(TREE INTERVAL)
+</div>
+<div class='apiref-result'>=> interval, inserted-p
+</div>
+<div class='apiref-doc'>
+
+<p>Insert <code>INTERVAL</code> into <code>TREE</code>, if an equivalent interval (by
+interval-equal-p) is not already in <code>TREE</code>, returning <code>INTERVAL</code>.
+Otherwise, return the existing interval.</p>
+
+<p><code>INSERTED-P</code> is <code>T</code> if there was no existing interval, or <code>NIL</code> if
+the existing interval was returned.</p>
+
+<p><code>INTERVAL</code> may alternatively be a cons in the form <code>(START . END)</code>.
+In this case, a simple interval is created and inserted.</p>
+
+</div>
+<a name='INTERVAL-END' class='apiref-row'></a>
+<div class='apiref-spec'>INTERVAL-END
+</div>
+<div class='apiref-lambda'>(SB-KERNEL:INSTANCE)
+</div>
+<div class='apiref-result'>=> end
+</div>
+<div class='apiref-doc'>
+
+<p>Return the <code>END</code> value of the interval.</p>
+
+</div>
+<a name='INTERVAL-START' class='apiref-row'></a>
+<div class='apiref-spec'>INTERVAL-START
+</div>
+<div class='apiref-lambda'>(SB-KERNEL:INSTANCE)
+</div>
+<div class='apiref-result'>=> start
+</div>
+<div class='apiref-doc'>
+
+<p>Return the <code>START</code> value of the interval.</p>
+
+</div>
+<a name='INTERVAL<' class='apiref-row'></a>
+<div class='apiref-spec'>INTERVAL<
+</div>
+<div class='apiref-lambda'>(I1 I2)
+</div>
+<div class='apiref-result'>=> boolean
+</div>
+<div class='apiref-doc'>
+
+<p>A simple example (also used in tests) which compares interval starts
+numerically by <code>#'&lt;</code>.</p>
+
+</div>
+<a name='INTERVAL=' class='apiref-row'></a>
+<div class='apiref-spec'>INTERVAL=
+</div>
+<div class='apiref-lambda'>(I1 I2)
+</div>
+<div class='apiref-result'>=> boolean
+</div>
+<div class='apiref-doc'>
+
+<p>A simple example (also used in tests) which compares interval equality
+numerically by <code>#'=</code>.</p>
+
+</div>
+<a name='MAKE-INTERVAL' class='apiref-row'></a>
+<div class='apiref-spec'>MAKE-INTERVAL
+</div>
+<div class='apiref-lambda'>(&KEY ((:START #:DUM0) NIL) ((:END #:DUM1) NIL))
+</div>
+<div class='apiref-result'>=> INTERVAL
+</div>
+<div class='apiref-doc'>
+
+<p>Returns a simple interval with specified <code>START</code> and <code>END</code>.</p>
+
+</div>
+<a name='MAKE-TREE' class='apiref-row'></a>
+<div class='apiref-spec'>MAKE-TREE
+</div>
+<div class='apiref-lambda'>(&KEY (INTERVAL-BEFORE-P 'INTERVAL<) (INTERVAL-EQUAL-P 'INTERVAL=)
+ (VALUE-BEFORE-P '<=))
+</div>
+<div class='apiref-result'>=> INTERVAL:TREE
+</div>
+<div class='apiref-doc'>
+
+<p>Make an interval tree given the specified functions.  By default,
+these are simple numeric comparisons.</p>
+
+<p><code>INTERVAL-BEFORE-P</code> should take two intervals, <code>A</code> and <code>B</code>, and test
+whether the <em>start</em> of <code>A</code> comes before the <em>start</em> of <code>B</code>.  This is
+used solely for tree placement.  <code>A</code> and <code>B</code> might be equal, but the
+test may be a less-than-not-equal test.</p>
+
+<p><code>INTERVAL-EQUAL-P</code> should take two intervals, <code>A</code> and <code>B</code>, and test
+whether they are equal (e.g., the starts and ends are the same).  This
+should <em>not</em> be an identity test (i.e., not <code>EQ</code>).</p>
+
+<p><code>VALUE-BEFORE-P</code> should take two <em>values</em>, <code>A</code> and <code>B</code>, which are
+used as start or end values, and compare whether <code>A</code> comes before <code>B</code>.
+For closed intervals, use a less-than-or-equal function.  For open
+intervals, use a less-than function.  Half-open intervals are currently
+not supported.</p>
+
+</div>
+<a name='TREE-BEFOREP' class='apiref-row'></a>
+<div class='apiref-spec'>TREE-BEFOREP
+</div>
+<div class='apiref-lambda'>(SB-KERNEL:INSTANCE)
+</div>
+<div class='apiref-result'>=> FUNCTION
+</div>
+<div class='apiref-doc'>
+
+<p>Return the function used to compare <em>intervals</em>.  It should return
+whether one interval <code>START</code> comes before another interval <code>START</code>.</p>
+
+</div>
+<a name='TREE-DUMP' class='apiref-row'></a>
+<div class='apiref-spec'>TREE-DUMP
+</div>
+<div class='apiref-lambda'>(TREE)
+</div>
+<div class='apiref-result'>=> list
+</div>
+<div class='apiref-doc'>
+
+<p>Return a tree dumped into a list form.  This is currently only useful for
+testing.</p>
+
+</div>
+<a name='TREE-EQUALP' class='apiref-row'></a>
+<div class='apiref-spec'>TREE-EQUALP
+</div>
+<div class='apiref-lambda'>(SB-KERNEL:INSTANCE)
+</div>
+<div class='apiref-result'>=> FUNCTION
+</div>
+<div class='apiref-doc'>
+
+<p>Return the function used to compare <em>intervals</em>.  It should return
+whether one interval is equal to another.  It should not be an identity
+comparison (i.e., not <code>EQ</code>).</p>
+
+</div>
+<a name='TREE-VALIDATE' class='apiref-row'></a>
+<div class='apiref-spec'>TREE-VALIDATE
+</div>
+<div class='apiref-lambda'>(TREE)
+</div>
+<div class='apiref-result'>=> T
+</div>
+<div class='apiref-doc'>
+
+<p>Tests <code>TREE</code> for AA-tree and interval-tree invariants, to make sure the
+tree is valid.  It returns <code>T</code>, or raises an error if the invariants are
+not met.</p>
+
+</div>
+<a name='TREE-VALUE-BEFORE-P' class='apiref-row'></a>
+<div class='apiref-spec'>TREE-VALUE-BEFORE-P
+</div>
+<div class='apiref-lambda'>(SB-KERNEL:INSTANCE)
+</div>
+<div class='apiref-result'>=> FUNCTION
+</div>
+<div class='apiref-doc'>
+
+<p>Return the function used to compare <em>values</em> (i.e., start and end).
+For closed intervals, use a less-than-or-equal function.  For open
+intervals, use a less-than function.  Half-open intervals are currently
+not supported.</p>
+
+</div>
+</html>
