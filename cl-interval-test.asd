@@ -1,7 +1,7 @@
 (cl:eval-when (:load-toplevel :execute)
   (asdf:load-system :checkl))
 
-(defsystem :cl-interval-test
+(asdf:defsystem :cl-interval-test
   :depends-on (#:cl-interval #:checkl #:alexandria #:s-dot)
 
   :pathname "t"
