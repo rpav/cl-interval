@@ -127,6 +127,17 @@ end (effectively finding intervals at a point)."
   (let ((interval (coerce-interval-designator interval t)))
     (mapcar #'node-value (node-find-all tree (tree-root tree) interval))))
 
+(defun find-any (tree interval)
+  "=> interval-in-tree or NIL
+
+Find any one interval in `TREE` intersecting `INTERVAL`.
+
+Alternatively, `INTERVAL` may be either a cons of `(START . END)`, or
+a single value, which will be used as both the start and the
+end (effectively finding intervals at a point)."
+  (let ((interval (coerce-interval-designator interval t)))
+    (node-find-any tree (tree-root tree) interval)))
+
 (defun tree-validate (tree)
   "=> T
 Tests `TREE` for AA-tree and interval-tree invariants, to make sure the
@@ -418,3 +429,13 @@ testing."
                    right))
               (current
                (list current)))))))
+
+(defun node-find-any (tree node interval)
+  (when node
+    (let ((v< (tree-value-before-p tree)))
+      (or (when (funcall v< (interval-start interval) (node-max-end node))
+            (node-find-any tree (node-left node) interval))
+          (when (interval-intersects v< (node-value node) interval)
+            node)
+          (when (funcall v< (interval-start (node-value node)) (interval-start interval))
+            (node-find-any tree (node-right node) interval))))))
