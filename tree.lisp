@@ -51,6 +51,17 @@ not supported."
               :equalp (coerce interval-equal-p 'function)
               :value-before-p (coerce value-before-p 'function)))
 
+(defun coerce-interval-designator (designator allow-single-value-interval)
+  (typecase designator
+    (interval designator)
+    ((cons atom atom)
+     (make-interval :start (car designator) :end (cdr designator)))
+    (t
+     (if allow-single-value-interval
+         (make-interval :start designator :end designator)
+         (error "Expected an INTERVAL or a CONS of start and end value, but got: ~S"
+                designator)))))
+
 (defun insert (tree interval)
   "=> interval, inserted-p
 
@@ -65,10 +76,7 @@ the existing interval was returned.
 In this case, a simple interval is created and inserted."
   (declare (type tree tree)
            (type (or cons interval) interval))
-  (let ((interval (etypecase interval
-                    (interval interval)
-                    (cons (make-interval :start (car interval)
-                                         :end (cdr interval))))))
+  (let ((interval (coerce-interval-designator interval nil)))
     (multiple-value-bind (node foundp)
         (node-insert tree (tree-root tree) interval)
       (if foundp
@@ -86,10 +94,7 @@ Delete an interval that is interval-equal-p to `INTERVAL` from `TREE`.
 . END)`."
   (declare (type tree tree)
            (type (or cons interval) interval))
-  (let ((interval (etypecase interval
-                    (interval interval)
-                    (cons (make-interval :start (car interval)
-                                         :end (cdr interval))))))
+  (let ((interval (coerce-interval-designator interval nil)))
     (multiple-value-bind (node foundp)
         (node-delete tree (tree-root tree) interval)
       (when foundp (setf (tree-root tree) node))
@@ -105,10 +110,7 @@ Find a specific interval that is :interval-equal-p to `INTERVAL` in
 . END)`."
   (declare (type tree tree)
            (type (or cons interval) interval))
-  (let ((interval (etypecase interval
-                    (interval interval)
-                    (cons (make-interval :start (car interval)
-                                         :end (cdr interval))))))
+  (let ((interval (coerce-interval-designator interval nil)))
     (multiple-value-bind (node foundp)
         (node-find tree (tree-root tree) interval)
       (and foundp (node-value node)))))
@@ -122,14 +124,8 @@ not have to be matched exactly in `TREE`.
 Alternatively, `INTERVAL` may be either a cons of `(START . END)`, or
 a single value, which will be used as both the start and the
 end (effectively finding intervals at a point)."
-  (let ((interval (typecase interval
-                    (interval interval)
-                    (cons
-                     (make-interval :start (car interval)
-                                    :end (cdr interval)))
-                    (t (make-interval :start interval :end interval)))))
-    (mapcar #'node-value
-            (node-find-all tree (tree-root tree) interval))))
+  (let ((interval (coerce-interval-designator interval t)))
+    (mapcar #'node-value (node-find-all tree (tree-root tree) interval))))
 
 (defun tree-validate (tree)
   "=> T
