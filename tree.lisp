@@ -396,11 +396,25 @@ testing."
 (defun node-find-all (tree node interval)
   (when node
     (let ((v< (tree-value-before-p tree)))
-      (concatenate 'list
-        (when (funcall v< (interval-start interval) (node-max-end node))
-          (node-find-all tree (node-left node) interval))
-        (when (interval-intersects v< (node-value node) interval)
-          (list node))
-        (when (funcall v< (interval-start (node-value node))
-                          (interval-start interval))
-          (node-find-all tree (node-right node) interval))))))
+      (let ((current
+             (when (interval-intersects v< (node-value node) interval)
+               node))
+            (left
+             (when (funcall v< (interval-start interval) (node-max-end node))
+               (node-find-all tree (node-left node) interval)))
+            (right
+             (when (funcall v< (interval-start (node-value node))
+                            (interval-start interval))
+               (node-find-all tree (node-right node) interval))))
+        (cond ((and left right)
+               (append left (and current (list current)) right))
+              (left
+               (if current
+                   (append left (list current))
+                   left))
+              (right
+               (if current
+                   (cons current right)
+                   right))
+              (current
+               (list current)))))))
