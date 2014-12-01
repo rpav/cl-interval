@@ -404,19 +404,26 @@ testing."
            (values node0 t)
            (values nil nil)))))))
 
+(defun node-in-range-p (v<-fun node interval)
+  (funcall v<-fun (interval-start interval) (node-max-end node)))
+
+(defun node-strictly-greater-p (v<-fun node interval)
+  (funcall v<-fun (interval-end interval) (interval-start (node-value node))))
+
 (defun node-find-all (tree node interval)
   (when node
-    (let ((v< (tree-value-before-p tree)))
+    (let* ((v< (tree-value-before-p tree))
+           (strictly-greater-p (node-strictly-greater-p v< node interval))
+           (in-range-p (node-in-range-p v< node interval)))
       (let ((current
-             (when (interval-intersects v< (node-value node) interval)
-               node))
+              (when (interval-intersects v< (node-value node) interval)
+                node))
             (left
-             (when (funcall v< (interval-start interval) (node-max-end node))
-               (node-find-all tree (node-left node) interval)))
+              (when in-range-p
+                (node-find-all tree (node-left node) interval)))
             (right
-             (when (funcall v< (interval-start (node-value node))
-                            (interval-start interval))
-               (node-find-all tree (node-right node) interval))))
+              (when (and in-range-p (not strictly-greater-p))
+                (node-find-all tree (node-right node) interval))))
         (cond ((and left right)
                (append left (and current (list current)) right))
               (left
@@ -432,10 +439,12 @@ testing."
 
 (defun node-find-any (tree node interval)
   (when node
-    (let ((v< (tree-value-before-p tree)))
-      (or (when (funcall v< (interval-start interval) (node-max-end node))
-            (node-find-any tree (node-left node) interval))
-          (when (interval-intersects v< (node-value node) interval)
+    (let* ((v< (tree-value-before-p tree))
+           (strictly-greater-p (node-strictly-greater-p v< node interval))
+           (in-range-p (node-in-range-p v< node interval)))
+      (or (when (interval-intersects v< (node-value node) interval)
             node)
-          (when (funcall v< (interval-start (node-value node)) (interval-start interval))
+          (when in-range-p
+            (node-find-any tree (node-left node) interval))
+          (when (and in-range-p (not strictly-greater-p))
             (node-find-any tree (node-right node) interval))))))
