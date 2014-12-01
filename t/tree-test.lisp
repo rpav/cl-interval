@@ -86,8 +86,8 @@
   (progn
     (run :make-tree)
     (dotimes (i 100000)
-      (interval:insert *aa* i))
+      (interval:insert *aa* (cons i i)))
     (dotimes (i 100000)
-      (interval:find *aa* i))
+      (interval:find *aa* (cons i i)))
     (dotimes (i 100000)
-      (interval:delete *aa* i)))))
+      (interval:delete *aa* (cons i i))))))

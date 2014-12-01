@@ -21,7 +21,7 @@ Returns a simple interval with specified `START` and `END`.")
           (interval-start i)
           (interval-end i)))
 
-(declaim (inline interval< interval=))
+(declaim (inline interval< interval= interval-intersects))
 (defun interval< (i1 i2)
   "=> boolean
 A simple example (also used in tests) which compares interval starts
@@ -41,6 +41,6 @@ numerically by `#'=`."
 (defun interval-intersects (v<-fun i1 i2)
   (declare (type function v<-fun)
            (type interval i1 i2))
-  (flet ((v< (a b) (funcall v<-fun a b)))
+  (flet ((v< (a b) (and (funcall v<-fun a b) t)))
     (and (v< (interval-start i1) (interval-end i2))
          (v< (interval-start i2) (interval-end i1)))))

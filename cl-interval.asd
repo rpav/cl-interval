@@ -1,4 +1,4 @@
-(defsystem :cl-interval
+(asdf:defsystem :cl-interval
   :description "Intervals, interval trees"
   :author "Ryan Pavlik"
   :license "NewBSD, LLGPL"
