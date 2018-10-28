@@ -330,9 +330,11 @@ testing."
              (setf (node-value node) (node-value predecessor))))))
        (t
         (if-node-fun ((node-left node) #'node-delete)
-          (setf node-found-p t)
+          (setf (node-left node) node0
+		node-found-p t)
           (if-node-fun ((node-right node) #'node-delete)
-            (setf node-found-p t)
+            (setf (node-rightt node) node0
+		  node-found-p t)
             (return-from node-delete (values nil nil))))))
      (if (node-leaf-p node)
          (values node node-found-p)
