@@ -333,7 +333,7 @@ testing."
           (setf (node-left node) node0
 		node-found-p t)
           (if-node-fun ((node-right node) #'node-delete)
-            (setf (node-rightt node) node0
+            (setf (node-right node) node0
 		  node-found-p t)
             (return-from node-delete (values nil nil))))))
      (if (node-leaf-p node)
